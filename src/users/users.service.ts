@@ -26,7 +26,7 @@ export class UsersService {
 
 
     async findUserByEmail(email:string):Promise<User | null>{
-        return this.userRepository.findOne({where:{email}})
+        return this.userRepository.findOne({where:{email},select:["email","password"]})
     }
 
     async findById(id:string):Promise<User>{

@@ -5,9 +5,16 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from './users/users.module';
 import { User } from './users/entities/user.entities';
-
+import { AuthModule } from './auth/auth.module';
+import { JwtModule } from '@nestjs/jwt';
+import { CatgeoriesModule } from './categories/categories.module';
 @Module({
   imports: [
+    JwtModule.register({
+          global:true,
+          secret:"secret",
+          signOptions:{expiresIn:"7d"}
+        }),
     ConfigModule.forRoot({isGlobal:true}),
           TypeOrmModule.forRootAsync({
             inject:[ConfigService],
@@ -24,7 +31,9 @@ import { User } from './users/entities/user.entities';
               migrationsRun:false
              })
           }),
-          UsersModule
+          UsersModule,
+          AuthModule,
+          CatgeoriesModule
   ],
   controllers: [AppController],
   providers: [AppService],

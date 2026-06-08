@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Request, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { RegisterDto } from './dtos/register.dto';
 import { User } from './entities/user.entities';
 import { UpdateUserDto } from './dtos/update-user.dto';
+import { AuthGuard } from 'src/guards/auth.guard';
 
 @Controller('users')
 export class UsersController {
@@ -19,11 +20,17 @@ export class UsersController {
     async getAllUsers():Promise<User[]>{
         return this.userService.getUsers()
     }
-
+    @UseGuards(AuthGuard)
+    @Get("profile")
+    async getUserProfile(@Request() req){
+        return req.user
+    }
+    @UseGuards(AuthGuard)
     @Get("/:id")
     async getUserById(@Param("id")id: string):Promise<User>{
         return this.userService.findById(id)
     }
+   
 
     @Patch(":id")
     async updateUserProfile(@Param("id")id:string,@Body()dto:UpdateUserDto):Promise<User>{

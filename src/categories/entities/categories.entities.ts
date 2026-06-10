@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 
 @Entity("catgeories")
@@ -18,6 +18,6 @@ export class Categeories{
     @CreateDateColumn()
     created_at:Date
 
-    @CreateDateColumn()
+    @UpdateDateColumn()
     updated_at:Date
 }

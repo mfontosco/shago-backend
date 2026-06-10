@@ -8,6 +8,11 @@ import { User } from './users/entities/user.entities';
 import { AuthModule } from './auth/auth.module';
 import { JwtModule } from '@nestjs/jwt';
 import { CatgeoriesModule } from './categories/categories.module';
+import { Categeories } from './categories/entities/categories.entities';
+import { AttributesModule } from './attributes/attributes.module';
+import { AttributeValueModule } from './attribute_value/attribute_value.module';
+import { Attributes } from './attributes/entities/attributes.entities';
+import { AttributeValue } from './attribute_value/entities/attribute_value.entities';
 @Module({
   imports: [
     JwtModule.register({
@@ -25,7 +30,7 @@ import { CatgeoriesModule } from './categories/categories.module';
               username: config.get("DB_USERNAME"),
               password:config.get("DB_PASSWORD"),
               database:config.get("DB_NAME"),
-              entities: [User],
+              entities: [User,Categeories,Attributes,AttributeValue],
               migrations: [__dirname + "/migrations/*{.ts,.js}"],
               synchronize:false,
               migrationsRun:false
@@ -33,7 +38,9 @@ import { CatgeoriesModule } from './categories/categories.module';
           }),
           UsersModule,
           AuthModule,
-          CatgeoriesModule
+          CatgeoriesModule,
+          AttributesModule,
+          AttributeValueModule
   ],
   controllers: [AppController],
   providers: [AppService],

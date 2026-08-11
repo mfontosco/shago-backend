@@ -38,6 +38,7 @@ import { Delivery } from './delivery/entities/delivery.entity';
 import { Rider } from './delivery/entities/rider.entity';
 import { Tenant } from './tenants/entities/tenant.entity';
 import { TenantsModule } from './tenants/tenants.module';
+import { VendorModule } from './vendor/vendor.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { TenantsModule } from './tenants/tenants.module';
              })
           }),
           TenantsModule,
+          VendorModule,
           UsersModule,
           AuthModule,
           CategoriesModule,

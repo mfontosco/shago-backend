@@ -26,8 +26,11 @@ import { AuditLoggerService } from '../../audit-logs/services/audit-logger.servi
  * - Track delivery progress
  * - Calculate delivery statistics
  *
+ * Multi-tenancy: All methods filter by tenant_id
+ * Deliveries are isolated per vendor
+ *
  * Used by:
- * - DeliveriesController (admin endpoints)
+ * - DeliveriesController (vendor endpoints at /api/v1/vendor/deliveries)
  * - OrdersService (when creating orders)
  * - Dashboard (delivery stats)
  */
@@ -44,12 +47,12 @@ export class DeliveriesService {
   ) {}
 
   /**
-   * Create delivery for an order
+   * Create delivery for an order - for specific tenant
    */
-  async create(dto: CreateDeliveryDto, adminId?: string): Promise<Delivery> {
-    // Verify order exists
+  async create(dto: CreateDeliveryDto, tenantId: string, adminId?: string): Promise<Delivery> {
+    // Verify order exists and belongs to tenant
     const order = await this.orderRepository.findOne({
-      where: { id: dto.order_id },
+      where: { id: dto.order_id, tenant_id: tenantId },  // ← Verify ownership
     });
 
     if (!order) {
@@ -66,9 +69,10 @@ export class DeliveriesService {
     }
 
     const delivery = this.deliveryRepository.create({
+      tenant_id: tenantId,  // ← CRITICAL: Set vendor ownership
       order_id: dto.order_id,
       pickup_address: dto.pickup_address || 'Warehouse',
-      delivery_address: dto.delivery_address || order.shipping_address,
+      delivery_address: dto.delivery_address || order.delivery_address,
       recipient_name: dto.recipient_name,
       recipient_phone: dto.recipient_phone,
       estimated_delivery_time: dto.estimated_delivery_time || 2,
@@ -94,9 +98,9 @@ export class DeliveriesService {
   }
 
   /**
-   * Find all deliveries with filters
+   * Find all deliveries with filters - for specific tenant
    */
-  async findAll(query: QueryDeliveriesDto): Promise<{
+  async findAll(query: QueryDeliveriesDto, tenantId: string): Promise<{
     data: Delivery[];
     total: number;
   }> {
@@ -104,7 +108,8 @@ export class DeliveriesService {
     const limit = query.limit || 20;
     const skip = (page - 1) * limit;
 
-    let queryBuilder = this.deliveryRepository.createQueryBuilder('delivery');
+    let queryBuilder = this.deliveryRepository.createQueryBuilder('delivery')
+      .where('delivery.tenant_id = :tenantId', { tenantId });  // ← CRITICAL: Filter by tenant
 
     // Apply filters
     if (query.status) {
@@ -148,11 +153,11 @@ export class DeliveriesService {
   }
 
   /**
-   * Find single delivery by ID
+   * Find single delivery by ID - verify tenant ownership
    */
-  async findOne(id: string): Promise<Delivery> {
+  async findOne(id: string, tenantId: string): Promise<Delivery> {
     const delivery = await this.deliveryRepository.findOne({
-      where: { id },
+      where: { id, tenant_id: tenantId },  // ← CRITICAL: Verify ownership
       relations: ['rider', 'order'],
     });
 
@@ -164,14 +169,15 @@ export class DeliveriesService {
   }
 
   /**
-   * Update delivery details
+   * Update delivery details for specific tenant
    */
   async update(
     id: string,
     dto: UpdateDeliveryDto,
+    tenantId: string,
     adminId: string,
   ): Promise<Delivery> {
-    const delivery = await this.findOne(id);
+    const delivery = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     const changes = [];
 
@@ -250,14 +256,15 @@ export class DeliveriesService {
   }
 
   /**
-   * Assign rider to delivery
+   * Assign rider to delivery for specific tenant
    */
   async assignRider(
     id: string,
     dto: AssignRiderDto,
+    tenantId: string,
     adminId: string,
   ): Promise<Delivery> {
-    const delivery = await this.findOne(id);
+    const delivery = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     if (!delivery.canBeAssigned()) {
       throw new BadRequestException(
@@ -296,14 +303,15 @@ export class DeliveriesService {
   }
 
   /**
-   * Update delivery status
+   * Update delivery status for specific tenant
    */
   async updateStatus(
     id: string,
     dto: UpdateDeliveryStatusDto,
+    tenantId: string,
     adminId: string,
   ): Promise<Delivery> {
-    const delivery = await this.findOne(id);
+    const delivery = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
     const oldStatus = delivery.status;
 
     // Validate status transitions
@@ -377,10 +385,10 @@ export class DeliveriesService {
   }
 
   /**
-   * Cancel delivery
+   * Cancel delivery for specific tenant
    */
-  async cancel(id: string, adminId: string): Promise<Delivery> {
-    const delivery = await this.findOne(id);
+  async cancel(id: string, tenantId: string, adminId: string): Promise<Delivery> {
+    const delivery = await this.findOne(id, tenantId);  // ← Verify ownership
 
     if (!delivery.canBeCancelled()) {
       throw new BadRequestException(
@@ -404,27 +412,30 @@ export class DeliveriesService {
   }
 
   /**
-   * Get delivery statistics
+   * Get delivery statistics for specific tenant
    */
-  async getStats() {
+  async getStats(tenantId: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
+    // ← CRITICAL: Filter all counts by tenant_id
     const [total, delivered, pending, failed, todays_deliveries] =
       await Promise.all([
-        this.deliveryRepository.count(),
-        this.deliveryRepository.count({ where: { status: 'delivered' } }),
+        this.deliveryRepository.count({ where: { tenant_id: tenantId } }),
+        this.deliveryRepository.count({ where: { tenant_id: tenantId, status: 'delivered' } }),
         this.deliveryRepository.count({
           where: {
+            tenant_id: tenantId,
             status: 'pending',
           },
         }),
-        this.deliveryRepository.count({ where: { status: 'failed' } }),
+        this.deliveryRepository.count({ where: { tenant_id: tenantId, status: 'failed' } }),
         this.deliveryRepository.count({
           where: {
+            tenant_id: tenantId,
             status: 'delivered',
             delivery_time: Between(today, tomorrow),
           },
@@ -442,11 +453,11 @@ export class DeliveriesService {
   }
 
   /**
-   * Get pending deliveries count
+   * Get pending deliveries count for specific tenant
    */
-  async getPendingCount(): Promise<number> {
+  async getPendingCount(tenantId: string): Promise<number> {
     return this.deliveryRepository.count({
-      where: { status: 'pending' },
+      where: { tenant_id: tenantId, status: 'pending' },  // ← Filter by tenant
     });
   }
 }

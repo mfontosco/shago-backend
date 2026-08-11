@@ -19,8 +19,11 @@ import { AuditLoggerService } from '../../audit-logs/services/audit-logger.servi
  * - Calculate completion rates
  * - Manage rider status
  *
+ * Multi-tenancy: All methods filter by tenant_id
+ * Riders are isolated per vendor
+ *
  * Used by:
- * - RidersController (admin endpoints)
+ * - RidersController (vendor endpoints at /api/v1/vendor/riders)
  * - DeliveriesService (when assigning to orders)
  * - Dashboard (rider stats)
  */
@@ -37,7 +40,7 @@ export class RidersService {
   ) {}
 
   /**
-   * Create new rider
+   * Create new rider for specific tenant
    */
   async create(
     data: {
@@ -47,11 +50,12 @@ export class RidersService {
       vehicle_type?: string;
       vehicle_plate?: string;
     },
+    tenantId: string,
     adminId?: string,
   ): Promise<Rider> {
-    // Check phone uniqueness
+    // Check phone uniqueness per tenant
     const existing = await this.riderRepository.findOne({
-      where: { phone: data.phone },
+      where: { phone: data.phone, tenant_id: tenantId },  // ← Unique per tenant
     });
 
     if (existing) {
@@ -59,6 +63,7 @@ export class RidersService {
     }
 
     const rider = this.riderRepository.create({
+      tenant_id: tenantId,  // ← CRITICAL: Set vendor ownership
       name: data.name,
       phone: data.phone,
       email: data.email,
@@ -87,9 +92,9 @@ export class RidersService {
   }
 
   /**
-   * Find all riders with pagination
+   * Find all riders with pagination - for specific tenant
    */
-  async findAll(query: QueryRidersDto): Promise<{
+  async findAll(query: QueryRidersDto, tenantId: string): Promise<{
     data: Rider[];
     total: number;
   }> {
@@ -97,7 +102,8 @@ export class RidersService {
     const limit = query.limit || 20;
     const skip = (page - 1) * limit;
 
-    let queryBuilder = this.riderRepository.createQueryBuilder('rider');
+    let queryBuilder = this.riderRepository.createQueryBuilder('rider')
+      .where('rider.tenant_id = :tenantId', { tenantId });  // ← CRITICAL: Filter by tenant
 
     // Apply filters
     if (query.status) {
@@ -128,11 +134,11 @@ export class RidersService {
   }
 
   /**
-   * Find single rider
+   * Find single rider - verify tenant ownership
    */
-  async findOne(id: string): Promise<Rider> {
+  async findOne(id: string, tenantId: string): Promise<Rider> {
     const rider = await this.riderRepository.findOne({
-      where: { id },
+      where: { id, tenant_id: tenantId },  // ← CRITICAL: Verify ownership
       relations: ['deliveries'],
     });
 
@@ -144,7 +150,7 @@ export class RidersService {
   }
 
   /**
-   * Update rider
+   * Update rider for specific tenant
    */
   async update(
     id: string,
@@ -155,9 +161,10 @@ export class RidersService {
       vehicle_plate?: string;
       notes?: string;
     },
+    tenantId: string,
     adminId: string,
   ): Promise<Rider> {
-    const rider = await this.findOne(id);
+    const rider = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     const changes = [];
 
@@ -224,14 +231,15 @@ export class RidersService {
   }
 
   /**
-   * Update rider status
+   * Update rider status for specific tenant
    */
   async updateStatus(
     id: string,
     status: 'available' | 'unavailable' | 'on_delivery' | 'on_break' | 'inactive',
+    tenantId: string,
     adminId?: string,
   ): Promise<Rider> {
-    const rider = await this.findOne(id);
+    const rider = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     const oldStatus = rider.status;
     rider.status = status;
@@ -260,13 +268,14 @@ export class RidersService {
   }
 
   /**
-   * Update rider performance after delivery
+   * Update rider performance after delivery for specific tenant
    */
   async updatePerformance(
     riderId: string,
+    tenantId: string,
     deliveryStatus: 'delivered' | 'failed' | 'cancelled',
   ): Promise<void> {
-    const rider = await this.findOne(riderId);
+    const rider = await this.findOne(riderId, tenantId);  // ← Pass tenantId for verification
 
     if (deliveryStatus === 'delivered') {
       rider.completed_deliveries += 1;
@@ -288,10 +297,10 @@ export class RidersService {
   }
 
   /**
-   * Delete rider
+   * Delete rider for specific tenant
    */
-  async remove(id: string, adminId: string): Promise<void> {
-    const rider = await this.findOne(id);
+  async remove(id: string, tenantId: string, adminId: string): Promise<void> {
+    const rider = await this.findOne(id, tenantId);  // ← Verify ownership
 
     // Check for pending deliveries
     const pendingDeliveries = await this.deliveryRepository.count({
@@ -320,9 +329,10 @@ export class RidersService {
   }
 
   /**
-   * Get rider statistics
+   * Get rider statistics for specific tenant
    */
-  async getStats() {
+  async getStats(tenantId: string) {
+    // ← CRITICAL: Filter all counts by tenant_id
     const [
       total_riders,
       available,
@@ -330,14 +340,14 @@ export class RidersService {
       inactive,
       top_performer,
     ] = await Promise.all([
-      this.riderRepository.count({ where: { is_active: true } }),
-      this.riderRepository.count({ where: { status: 'available' } }),
+      this.riderRepository.count({ where: { tenant_id: tenantId, is_active: true } }),
+      this.riderRepository.count({ where: { tenant_id: tenantId, status: 'available' } }),
       this.riderRepository.count({
-        where: { status: 'on_delivery' },
+        where: { tenant_id: tenantId, status: 'on_delivery' },
       }),
-      this.riderRepository.count({ where: { is_active: false } }),
+      this.riderRepository.count({ where: { tenant_id: tenantId, is_active: false } }),
       this.riderRepository.findOne({
-        where: { is_active: true },
+        where: { tenant_id: tenantId, is_active: true },
         order: { completion_rate: 'DESC' },
       }),
     ]);
@@ -352,20 +362,20 @@ export class RidersService {
   }
 
   /**
-   * Get available riders
+   * Get available riders for specific tenant
    */
-  async getAvailable(): Promise<Rider[]> {
+  async getAvailable(tenantId: string): Promise<Rider[]> {
     return this.riderRepository.find({
-      where: { status: 'available', is_active: true },
+      where: { tenant_id: tenantId, status: 'available', is_active: true },  // ← Filter by tenant
       order: { rating: 'DESC' },
     });
   }
 
   /**
-   * Get rider with performance metrics
+   * Get rider with performance metrics for specific tenant
    */
-  async getRiderWithMetrics(id: string) {
-    const rider = await this.findOne(id);
+  async getRiderWithMetrics(id: string, tenantId: string) {
+    const rider = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     return {
       ...rider,

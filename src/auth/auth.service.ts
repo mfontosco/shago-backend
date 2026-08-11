@@ -1,8 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { LoginDto } from 'src/users/dtos/login.dto';
-import { User } from 'src/users/entities/user.entities';
-import { UsersService } from 'src/users/users.service';
+import { LoginDto } from '../users/dtos/login.dto';
+import { User } from '../users/entities/user.entities';
+import { UsersService } from '../users/users.service';
 import  * as bcrypt from "bcrypt"
 
 @Injectable()
@@ -23,9 +23,15 @@ export class AuthService {
             throw new UnauthorizedException("password mismatch")
         }
         const {password: _ ,...userWithoutPassword} = user
-        const payload = {sub: user.id, username: user.email}
+
+        // ✅ CRITICAL: Include tenant_id in JWT payload for multi-tenancy
+        const payload = {
+            sub: user.id,
+            email: user.email,
+            tenant_id: user.tenant_id,  // ← ADDED FOR MULTI-TENANCY
+        }
         const access_token =  await this.jwtService.signAsync(payload)
-        
-        return  {...userWithoutPassword,access_token}
+
+        return  {...userWithoutPassword, access_token, tenant_id: user.tenant_id}
     }
 }

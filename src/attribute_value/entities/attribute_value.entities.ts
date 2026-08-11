@@ -7,9 +7,9 @@ export class AttributeValue{
     @PrimaryGeneratedColumn("uuid")
     id:string;
 
-    @Column()
+    @Column({unique:true})
     value: string
 
-    @ManyToOne(()=>Attributes,(attr)=>attr.values)
+    @ManyToOne(()=>Attributes,(attr)=>attr.values,{onDelete:"CASCADE"})
     attribute:Attributes
 }

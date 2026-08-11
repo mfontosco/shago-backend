@@ -21,15 +21,21 @@ export class AttributesService {
 
             if(attributeExist)throw new ConflictException("Attribute with the name already exists")
 
-                const newAttribute = await this.attributeRepository.create(dto)
+                const newAttribute = this.attributeRepository.create({
+                name: dto.name,
+                slug: dto.slug,
+                sort_order: dto.sort_order,
+                });
 
                 return this.attributeRepository.save(newAttribute)
         }
 
         async getAttributes():Promise<Attributes[]>{
-            const attributes = await this.attributeRepository.find()
+            const attributes = await this.attributeRepository.find({
+                relations:["values"]
+            })
 
-            if(!attributes) throw new NotFoundException("Attributes are not found")
+            if(attributes.length === 0) throw new NotFoundException("Attributes are not found")
                 
             return attributes
         }

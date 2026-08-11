@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Repository } from 'typeorm';
 import { AttributeValue } from './entities/attribute_value.entities';
 import { CreateAttributeValueDto } from './dto/create-attribute-value.dto';
-import { Attributes } from 'src/attributes/entities/attributes.entities';
+import { Attributes } from '../attributes/entities/attributes.entities';
 import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()

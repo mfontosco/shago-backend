@@ -12,21 +12,34 @@ export class UsersService {
         private readonly userRepository:Repository<User>
     ){}
 
-    async createUser(dto:RegisterDto):Promise<User>{
-        const {password,active} = dto
-        const userExists = await this.userRepository.findOne({where:{email:dto.email}})
-        if(userExists){
-            throw new BadRequestException("user with this email already exists,please login")
-        }
-        const hashPassword = await bcrypt.hash(password,10)
-        const newUser = await this.userRepository.create({...dto,password:hashPassword,active:true})
+    /**
+     * Create user with either RegisterDto or direct user data
+     * Supports both traditional registration and vendor tenant registration
+     */
+    async createUser(dto: RegisterDto | any): Promise<User>{
+        const { password, email } = dto;
 
-        return this.userRepository.save(newUser)
+        // Check if user already exists
+        const userExists = await this.userRepository.findOne({ where: { email } });
+        if (userExists) {
+            throw new BadRequestException("user with this email already exists, please login");
+        }
+
+        // Use provided hashed password (for vendor registration) or hash it
+        const finalPassword = password && password.length > 50 ? password : await bcrypt.hash(password, 10);
+
+        const newUser = await this.userRepository.create({
+            ...dto,
+            password: finalPassword,
+            active: true,
+        });
+
+        return this.userRepository.save(newUser);
     }
 
 
     async findUserByEmail(email:string):Promise<User | null>{
-        return this.userRepository.findOne({where:{email},select:["email","password"]})
+        return this.userRepository.findOne({where:{email}})
     }
 
     async findById(id:string):Promise<User>{

@@ -20,8 +20,11 @@ import { AuditLoggerService } from '../../audit-logs/services/audit-logger.servi
  * - Delete categories
  * - Get category statistics
  *
+ * Multi-tenancy: All methods filter by tenant_id
+ * Categories are isolated per vendor
+ *
  * Used by:
- * - CategoriesController (admin endpoints)
+ * - CategoriesController (vendor endpoints at /api/v1/vendor/categories)
  * - ProductsService (category validation)
  * - Dashboard (category stats)
  */
@@ -38,12 +41,12 @@ export class CategoriesService {
   ) {}
 
   /**
-   * Create a new category
+   * Create a new category for a specific tenant
    */
-  async create(dto: CreateCategoryDto, adminId?: string): Promise<Categeories> {
-    // Check name is unique
+  async create(dto: CreateCategoryDto, tenantId: string, adminId?: string): Promise<Categeories> {
+    // Check name is unique per tenant
     const existing = await this.categoriesRepository.findOne({
-      where: { name: dto.name },
+      where: { name: dto.name, tenant_id: tenantId },  // ← Unique per tenant
     });
 
     if (existing) {
@@ -51,6 +54,7 @@ export class CategoriesService {
     }
 
     const category = this.categoriesRepository.create({
+      tenant_id: tenantId,  // ← CRITICAL: Set vendor ownership
       name: dto.name,
       description: dto.description,
       image_url: dto.image_url,
@@ -73,14 +77,15 @@ export class CategoriesService {
   }
 
   /**
-   * Find all categories with pagination and filtering
+   * Find all categories for a specific tenant with pagination and filtering
    */
-  async findAll(query: QueryCategoriesDto): Promise<{ data: Categeories[]; total: number }> {
+  async findAll(query: QueryCategoriesDto, tenantId: string): Promise<{ data: Categeories[]; total: number }> {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const skip = (page - 1) * limit;
 
-    let queryBuilder = this.categoriesRepository.createQueryBuilder('category');
+    let queryBuilder = this.categoriesRepository.createQueryBuilder('category')
+      .where('category.tenant_id = :tenantId', { tenantId });  // ← CRITICAL: Filter by tenant
 
     // Apply search filter
     if (query.search) {
@@ -120,11 +125,11 @@ export class CategoriesService {
   }
 
   /**
-   * Find single category by ID
+   * Find single category by ID - verify tenant ownership
    */
-  async findOne(id: string): Promise<Categeories> {
+  async findOne(id: string, tenantId: string): Promise<Categeories> {
     const category = await this.categoriesRepository.findOne({
-      where: { id },
+      where: { id, tenant_id: tenantId },  // ← CRITICAL: Verify ownership
     });
 
     if (!category) {
@@ -133,7 +138,7 @@ export class CategoriesService {
 
     // Add product count
     const productCount = await this.productsRepository.count({
-      where: { category_id: id },
+      where: { category_id: id, tenant_id: tenantId },  // ← Filter by tenant
     });
     category.product_count = productCount;
 
@@ -141,10 +146,10 @@ export class CategoriesService {
   }
 
   /**
-   * Update category
+   * Update category for a specific tenant
    */
-  async update(id: string, dto: UpdateCategoryDto, adminId: string): Promise<Categeories> {
-    const category = await this.findOne(id);
+  async update(id: string, dto: UpdateCategoryDto, tenantId: string, adminId: string): Promise<Categeories> {
+    const category = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     const changes = [];
 
@@ -189,14 +194,14 @@ export class CategoriesService {
   }
 
   /**
-   * Delete category
+   * Delete category for a specific tenant
    */
-  async remove(id: string, adminId: string): Promise<void> {
-    const category = await this.findOne(id);
+  async remove(id: string, tenantId: string, adminId: string): Promise<void> {
+    const category = await this.findOne(id, tenantId);  // ← Verify ownership
 
-    // Check if category has products
+    // Check if category has products (filtered by tenant)
     const productCount = await this.productsRepository.count({
-      where: { category_id: id },
+      where: { category_id: id, tenant_id: tenantId },  // ← Filter by tenant
     });
 
     if (productCount > 0) {
@@ -218,31 +223,32 @@ export class CategoriesService {
   }
 
   /**
-   * Get all categories (simple list)
+   * Get all categories for a specific tenant (simple list)
    */
-  async findAllSimple(): Promise<Categeories[]> {
+  async findAllSimple(tenantId: string): Promise<Categeories[]> {
     return this.categoriesRepository.find({
+      where: { tenant_id: tenantId },  // ← Filter by tenant
       order: { name: 'ASC' },
     });
   }
 
   /**
-   * Get category with products
+   * Get category with products for a specific tenant
    */
-  async getCategoryWithProducts(id: string, page: number = 1, limit: number = 20) {
-    const category = await this.findOne(id);
+  async getCategoryWithProducts(id: string, tenantId: string, page: number = 1, limit: number = 20) {
+    const category = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     const skip = (page - 1) * limit;
 
     const products = await this.productsRepository.find({
-      where: { category_id: id },
+      where: { category_id: id, tenant_id: tenantId },  // ← Filter by tenant
       skip,
       take: limit,
       order: { created_at: 'DESC' },
     });
 
     const total = await this.productsRepository.count({
-      where: { category_id: id },
+      where: { category_id: id, tenant_id: tenantId },  // ← Filter by tenant
     });
 
     return {

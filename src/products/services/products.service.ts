@@ -153,11 +153,11 @@ export class ProductsService {
   }
 
   /**
-   * Find single product by ID
+   * Find single product by ID - verify tenant ownership
    */
-  async findOne(id: string): Promise<Product> {
+  async findOne(id: string, tenantId: string): Promise<Product> {
     const product = await this.productsRepository.findOne({
-      where: { id },
+      where: { id, tenant_id: tenantId },  // ← CRITICAL: Verify ownership
       relations: ['category'],
     });
 
@@ -169,10 +169,10 @@ export class ProductsService {
   }
 
   /**
-   * Update product details
+   * Update product details for a specific tenant
    */
-  async update(id: string, dto: UpdateProductDto, adminId: string): Promise<Product> {
-    const product = await this.findOne(id);
+  async update(id: string, dto: UpdateProductDto, tenantId: string, adminId: string): Promise<Product> {
+    const product = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     const changes = [];
 
@@ -223,14 +223,15 @@ export class ProductsService {
   }
 
   /**
-   * Update product stock
+   * Update product stock for a specific tenant
    */
   async updateStock(
     id: string,
     dto: UpdateStockDto,
+    tenantId: string,
     adminId: string,
   ): Promise<Product> {
-    const product = await this.findOne(id);
+    const product = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     const oldStock = product.stock;
     let newStock = oldStock;
@@ -269,35 +270,36 @@ export class ProductsService {
   }
 
   /**
-   * Get low stock alerts
+   * Get low stock alerts for a specific tenant
    */
-  async getLowStockAlerts(threshold: number = 10): Promise<Product[]> {
+  async getLowStockAlerts(tenantId: string, threshold: number = 10): Promise<Product[]> {
     return this.productsRepository.find({
-      where: { stock: LessThan(threshold), status: 'active' },
+      where: { tenant_id: tenantId, stock: LessThan(threshold), status: 'active' },  // ← Filter by tenant
       order: { stock: 'ASC' },
       take: 20,
     });
   }
 
   /**
-   * Search products
+   * Search products for a specific tenant
    */
-  async search(query: string): Promise<Product[]> {
-    return this.productsRepository.find({
-      where: [
-        { name: Like(`%${query}%`) },
-        { sku: Like(`%${query}%`) },
-        { description: Like(`%${query}%`) },
-      ],
-      take: 10,
-    });
+  async search(query: string, tenantId: string): Promise<Product[]> {
+    return this.productsRepository
+      .createQueryBuilder('product')
+      .where('product.tenant_id = :tenantId', { tenantId })  // ← Filter by tenant
+      .andWhere(
+        '(product.name ILIKE :query OR product.sku ILIKE :query OR product.description ILIKE :query)',
+        { query: `%${query}%` }
+      )
+      .take(10)
+      .getMany();
   }
 
   /**
-   * Archive product
+   * Archive product for a specific tenant
    */
-  async archive(id: string, adminId: string): Promise<Product> {
-    const product = await this.findOne(id);
+  async archive(id: string, tenantId: string, adminId: string): Promise<Product> {
+    const product = await this.findOne(id, tenantId);  // ← Verify ownership
 
     product.status = 'archived';
     const updated = await this.productsRepository.save(product);
@@ -322,10 +324,10 @@ export class ProductsService {
   }
 
   /**
-   * Delete (soft delete) product
+   * Delete (soft delete) product for a specific tenant
    */
-  async remove(id: string, adminId: string): Promise<void> {
-    const product = await this.findOne(id);
+  async remove(id: string, tenantId: string, adminId: string): Promise<void> {
+    const product = await this.findOne(id, tenantId);  // ← Verify ownership
 
     await this.productsRepository.softDelete(id);
 
@@ -340,17 +342,17 @@ export class ProductsService {
   }
 
   /**
-   * Get product count
+   * Get product count for a specific tenant
    */
-  async getCount(): Promise<number> {
-    return this.productsRepository.count({ where: { status: 'active' } });
+  async getCount(tenantId: string): Promise<number> {
+    return this.productsRepository.count({ where: { tenant_id: tenantId, status: 'active' } });  // ← Filter by tenant
   }
 
   /**
-   * Get total inventory value
+   * Get total inventory value for a specific tenant
    */
-  async getInventoryValue(): Promise<number> {
-    const products = await this.productsRepository.find();
+  async getInventoryValue(tenantId: string): Promise<number> {
+    const products = await this.productsRepository.find({ where: { tenant_id: tenantId } });  // ← Filter by tenant
     return products.reduce((sum, p) => sum + Number(p.price) * p.stock, 0);
   }
 }

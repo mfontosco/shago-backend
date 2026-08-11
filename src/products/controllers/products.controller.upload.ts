@@ -27,7 +27,9 @@ import {
   QueryProductsDto,
 } from '../dtos/create-product.dto';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { TenantGuard } from '../../common/guards/tenant.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Request as ExpressRequest } from 'express';
 
 /**
@@ -55,8 +57,12 @@ export class ProductsController {
    * Public endpoint (read-only)
    */
   @Get()
-  async findAll(@Query() query: QueryProductsDto) {
-    const { data, total } = await this.productsService.findAll(query);
+  @UseGuards(TenantGuard)
+  async findAll(
+    @Query() query: QueryProductsDto,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const { data, total } = await this.productsService.findAll(query, tenantId);
 
     return {
       statusCode: 200,
@@ -78,8 +84,12 @@ export class ProductsController {
    * Public endpoint
    */
   @Get('search/:query')
-  async search(@Param('query') query: string) {
-    const products = await this.productsService.search(query);
+  @UseGuards(TenantGuard)
+  async search(
+    @Param('query') query: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const products = await this.productsService.search(query, tenantId);
 
     return {
       statusCode: 200,
@@ -95,10 +105,10 @@ export class ProductsController {
    * Admin only
    */
   @Get('low-stock')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async getLowStock() {
-    const products = await this.productsService.getLowStockAlerts();
+  async getLowStock(@CurrentTenant() tenantId: string) {
+    const products = await this.productsService.getLowStockAlerts(tenantId);
 
     return {
       statusCode: 200,
@@ -186,8 +196,12 @@ export class ProductsController {
    * Public endpoint
    */
   @Get(':id')
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const product = await this.productsService.findOne(id);
+  @UseGuards(TenantGuard)
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const product = await this.productsService.findOne(id, tenantId);
 
     return {
       statusCode: 200,
@@ -210,12 +224,13 @@ export class ProductsController {
    *   http://localhost:3000/api/v1/admin/products/product-uuid
    */
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @UseInterceptors(FileInterceptor('image'))
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProductDto: UpdateProductDto,
+    @CurrentTenant() tenantId: string,
     @UploadedFile() file: Express.Multer.File,
     @Request() req: ExpressRequest,
   ) {
@@ -242,6 +257,7 @@ export class ProductsController {
         ...updateProductDto,
         image_url: imageUrl || updateProductDto.image_url,
       },
+      tenantId,
       req.user?.['id'],
     );
 

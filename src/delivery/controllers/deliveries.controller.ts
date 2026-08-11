@@ -22,7 +22,9 @@ import {
   QueryDeliveriesDto,
 } from '../dtos/create-delivery.dto';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { TenantGuard } from '../../common/guards/tenant.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Request as ExpressRequest } from 'express';
 
 /**
@@ -57,10 +59,13 @@ export class DeliveriesController {
    *   http://localhost:3000/api/v1/admin/deliveries?status=pending&page=1
    */
   @Get()
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async findAll(@Query() query: QueryDeliveriesDto) {
-    const { data, total } = await this.deliveriesService.findAll(query);
+  async findAll(
+    @Query() query: QueryDeliveriesDto,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const { data, total } = await this.deliveriesService.findAll(query, tenantId);
 
     return {
       statusCode: 200,
@@ -101,15 +106,17 @@ export class DeliveriesController {
    *   http://localhost:3000/api/v1/admin/deliveries
    */
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Body() createDeliveryDto: CreateDeliveryDto,
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
     const delivery = await this.deliveriesService.create(
       createDeliveryDto,
+      tenantId,
       req.user?.['id'],
     );
 
@@ -131,10 +138,13 @@ export class DeliveriesController {
    *   http://localhost:3000/api/v1/admin/deliveries/uuid
    */
   @Get(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const delivery = await this.deliveriesService.findOne(id);
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const delivery = await this.deliveriesService.findOne(id, tenantId);
 
     return {
       statusCode: 200,
@@ -161,16 +171,18 @@ export class DeliveriesController {
    *   http://localhost:3000/api/v1/admin/deliveries/uuid
    */
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDeliveryDto: UpdateDeliveryDto,
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
     const delivery = await this.deliveriesService.update(
       id,
       updateDeliveryDto,
+      tenantId,
       req.user?.['id'],
     );
 
@@ -197,16 +209,18 @@ export class DeliveriesController {
    *   http://localhost:3000/api/v1/admin/deliveries/uuid/assign-rider
    */
   @Patch(':id/assign-rider')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   async assignRider(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() assignRiderDto: AssignRiderDto,
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
     const delivery = await this.deliveriesService.assignRider(
       id,
       assignRiderDto,
+      tenantId,
       req.user?.['id'],
     );
 
@@ -234,16 +248,18 @@ export class DeliveriesController {
    *   http://localhost:3000/api/v1/admin/deliveries/uuid/status
    */
   @Patch(':id/status')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateStatusDto: UpdateDeliveryStatusDto,
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
     const delivery = await this.deliveriesService.updateStatus(
       id,
       updateStatusDto,
+      tenantId,
       req.user?.['id'],
     );
 
@@ -265,11 +281,15 @@ export class DeliveriesController {
    *   http://localhost:3000/api/v1/admin/deliveries/uuid
    */
   @Delete(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseUUIDPipe) id: string, @Request() req: ExpressRequest) {
-    await this.deliveriesService.cancel(id, req.user?.['id']);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+    @Request() req: ExpressRequest,
+  ) {
+    await this.deliveriesService.cancel(id, tenantId, req.user?.['id']);
 
     return {
       statusCode: 204,
@@ -288,10 +308,10 @@ export class DeliveriesController {
    *   http://localhost:3000/api/v1/admin/deliveries/stats/dashboard
    */
   @Get('stats/dashboard')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async getStats() {
-    const stats = await this.deliveriesService.getStats();
+  async getStats(@CurrentTenant() tenantId: string) {
+    const stats = await this.deliveriesService.getStats(tenantId);
 
     return {
       statusCode: 200,

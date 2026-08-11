@@ -21,7 +21,9 @@ import {
   QueryProductsDto,
 } from '../dtos/create-product.dto';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { TenantGuard } from '../../common/guards/tenant.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Request as ExpressRequest } from 'express';
 
 /**
@@ -44,8 +46,12 @@ export class ProductsController {
    * Public endpoint (read-only)
    */
   @Get()
-  async findAll(@Query() query: QueryProductsDto) {
-    const { data, total } = await this.productsService.findAll(query);
+  @UseGuards(TenantGuard)
+  async findAll(
+    @Query() query: QueryProductsDto,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const { data, total } = await this.productsService.findAll(query, tenantId);
 
     return {
       statusCode: 200,
@@ -67,8 +73,12 @@ export class ProductsController {
    * Public endpoint
    */
   @Get('search/:query')
-  async search(@Param('query') query: string) {
-    const products = await this.productsService.search(query);
+  @UseGuards(TenantGuard)
+  async search(
+    @Param('query') query: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const products = await this.productsService.search(query, tenantId);
 
     return {
       statusCode: 200,
@@ -84,10 +94,10 @@ export class ProductsController {
    * Admin only
    */
   @Get('low-stock')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async getLowStock() {
-    const products = await this.productsService.getLowStockAlerts();
+  async getLowStock(@CurrentTenant() tenantId: string) {
+    const products = await this.productsService.getLowStockAlerts(tenantId);
 
     return {
       statusCode: 200,
@@ -103,11 +113,15 @@ export class ProductsController {
    * Admin only
    */
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() createProductDto: CreateProductDto, @Request() req: ExpressRequest) {
-    const product = await this.productsService.create(createProductDto, req.user?.['id']);
+  async create(
+    @Body() createProductDto: CreateProductDto,
+    @CurrentTenant() tenantId: string,
+    @Request() req: ExpressRequest,
+  ) {
+    const product = await this.productsService.create(createProductDto, tenantId, req.user?.['id']);
 
     return {
       statusCode: 201,
@@ -123,8 +137,12 @@ export class ProductsController {
    * Public endpoint
    */
   @Get(':id')
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const product = await this.productsService.findOne(id);
+  @UseGuards(TenantGuard)
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const product = await this.productsService.findOne(id, tenantId);
 
     return {
       statusCode: 200,
@@ -140,16 +158,18 @@ export class ProductsController {
    * Admin only
    */
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProductDto: UpdateProductDto,
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
     const product = await this.productsService.update(
       id,
       updateProductDto,
+      tenantId,
       req.user?.['id'],
     );
 
@@ -167,16 +187,18 @@ export class ProductsController {
    * Admin only
    */
   @Patch(':id/stock')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   async updateStock(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateStockDto: UpdateStockDto,
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
     const product = await this.productsService.updateStock(
       id,
       updateStockDto,
+      tenantId,
       req.user?.['id'],
     );
 
@@ -194,10 +216,14 @@ export class ProductsController {
    * Admin only
    */
   @Patch(':id/archive')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async archive(@Param('id', ParseUUIDPipe) id: string, @Request() req: ExpressRequest) {
-    const product = await this.productsService.archive(id, req.user?.['id']);
+  async archive(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+    @Request() req: ExpressRequest,
+  ) {
+    const product = await this.productsService.archive(id, tenantId, req.user?.['id']);
 
     return {
       statusCode: 200,
@@ -213,11 +239,15 @@ export class ProductsController {
    * Admin only
    */
   @Delete(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseUUIDPipe) id: string, @Request() req: ExpressRequest) {
-    await this.productsService.remove(id, req.user?.['id']);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+    @Request() req: ExpressRequest,
+  ) {
+    await this.productsService.remove(id, tenantId, req.user?.['id']);
 
     return {
       statusCode: 204,
@@ -232,10 +262,10 @@ export class ProductsController {
    * Admin only
    */
   @Get('stats/count')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async getCount() {
-    const count = await this.productsService.getCount();
+  async getCount(@CurrentTenant() tenantId: string) {
+    const count = await this.productsService.getCount(tenantId);
 
     return {
       statusCode: 200,
@@ -251,10 +281,10 @@ export class ProductsController {
    * Admin only
    */
   @Get('stats/inventory-value')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async getInventoryValue() {
-    const value = await this.productsService.getInventoryValue();
+  async getInventoryValue(@CurrentTenant() tenantId: string) {
+    const value = await this.productsService.getInventoryValue(tenantId);
 
     return {
       statusCode: 200,

@@ -16,7 +16,9 @@ import {
 import { RidersService } from '../services/riders.service';
 import { QueryRidersDto } from '../dtos/create-delivery.dto';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { TenantGuard } from '../../common/guards/tenant.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Request as ExpressRequest } from 'express';
 
 /**
@@ -50,10 +52,13 @@ export class RidersController {
    *   http://localhost:3000/api/v1/admin/riders?status=available
    */
   @Get()
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async findAll(@Query() query: QueryRidersDto) {
-    const { data, total } = await this.ridersService.findAll(query);
+  async findAll(
+    @Query() query: QueryRidersDto,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const { data, total } = await this.ridersService.findAll(query, tenantId);
 
     return {
       statusCode: 200,
@@ -93,7 +98,7 @@ export class RidersController {
    *   http://localhost:3000/api/v1/admin/riders
    */
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @HttpCode(HttpStatus.CREATED)
   async create(
@@ -105,9 +110,10 @@ export class RidersController {
       vehicle_type?: string;
       vehicle_plate?: string;
     },
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
-    const rider = await this.ridersService.create(data, req.user?.['id']);
+    const rider = await this.ridersService.create(data, tenantId, req.user?.['id']);
 
     return {
       statusCode: 201,
@@ -127,10 +133,10 @@ export class RidersController {
    *   http://localhost:3000/api/v1/admin/riders/available
    */
   @Get('available')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async getAvailable() {
-    const riders = await this.ridersService.getAvailable();
+  async getAvailable(@CurrentTenant() tenantId: string) {
+    const riders = await this.ridersService.getAvailable(tenantId);
 
     return {
       statusCode: 200,
@@ -151,10 +157,13 @@ export class RidersController {
    *   http://localhost:3000/api/v1/admin/riders/uuid
    */
   @Get(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const rider = await this.ridersService.getRiderWithMetrics(id);
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const rider = await this.ridersService.getRiderWithMetrics(id, tenantId);
 
     return {
       statusCode: 200,
@@ -182,7 +191,7 @@ export class RidersController {
    *   http://localhost:3000/api/v1/admin/riders/uuid
    */
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -194,9 +203,10 @@ export class RidersController {
       vehicle_plate?: string;
       notes?: string;
     },
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
-    const rider = await this.ridersService.update(id, data, req.user?.['id']);
+    const rider = await this.ridersService.update(id, data, tenantId, req.user?.['id']);
 
     return {
       statusCode: 200,
@@ -220,16 +230,18 @@ export class RidersController {
    *   http://localhost:3000/api/v1/admin/riders/uuid/status
    */
   @Patch(':id/status')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() data: { status: string },
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
     const rider = await this.ridersService.updateStatus(
       id,
       data.status as any,
+      tenantId,
       req.user?.['id'],
     );
 
@@ -251,11 +263,15 @@ export class RidersController {
    *   http://localhost:3000/api/v1/admin/riders/uuid
    */
   @Delete(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseUUIDPipe) id: string, @Request() req: ExpressRequest) {
-    await this.ridersService.remove(id, req.user?.['id']);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+    @Request() req: ExpressRequest,
+  ) {
+    await this.ridersService.remove(id, tenantId, req.user?.['id']);
 
     return {
       statusCode: 204,
@@ -274,10 +290,10 @@ export class RidersController {
    *   http://localhost:3000/api/v1/admin/riders/stats/dashboard
    */
   @Get('stats/dashboard')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async getStats() {
-    const stats = await this.ridersService.getStats();
+  async getStats(@CurrentTenant() tenantId: string) {
+    const stats = await this.ridersService.getStats(tenantId);
 
     return {
       statusCode: 200,

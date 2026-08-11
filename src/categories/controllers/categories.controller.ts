@@ -20,7 +20,9 @@ import {
   QueryCategoriesDto,
 } from '../dtos/create-category.dto';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { TenantGuard } from '../../common/guards/tenant.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Request as ExpressRequest } from 'express';
 
 /**
@@ -43,8 +45,12 @@ export class CategoriesController {
    * Public endpoint
    */
   @Get()
-  async findAll(@Query() query: QueryCategoriesDto) {
-    const { data, total } = await this.categoriesService.findAll(query);
+  @UseGuards(TenantGuard)
+  async findAll(
+    @Query() query: QueryCategoriesDto,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const { data, total } = await this.categoriesService.findAll(query, tenantId);
 
     return {
       statusCode: 200,
@@ -66,15 +72,17 @@ export class CategoriesController {
    * Admin only
    */
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Body() createCategoryDto: CreateCategoryDto,
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
     const category = await this.categoriesService.create(
       createCategoryDto,
+      tenantId,
       req.user?.['id'],
     );
 
@@ -92,8 +100,12 @@ export class CategoriesController {
    * Public endpoint
    */
   @Get(':id')
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const category = await this.categoriesService.findOne(id);
+  @UseGuards(TenantGuard)
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const category = await this.categoriesService.findOne(id, tenantId);
 
     return {
       statusCode: 200,
@@ -109,12 +121,14 @@ export class CategoriesController {
    * Public endpoint
    */
   @Get(':id/products')
+  @UseGuards(TenantGuard)
   async getCategoryProducts(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
+    @CurrentTenant() tenantId: string,
   ) {
-    const result = await this.categoriesService.getCategoryWithProducts(id, page, limit);
+    const result = await this.categoriesService.getCategoryWithProducts(id, tenantId, page, limit);
 
     return {
       statusCode: 200,
@@ -130,16 +144,18 @@ export class CategoriesController {
    * Admin only
    */
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateCategoryDto: UpdateCategoryDto,
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
     const category = await this.categoriesService.update(
       id,
       updateCategoryDto,
+      tenantId,
       req.user?.['id'],
     );
 
@@ -158,11 +174,15 @@ export class CategoriesController {
    * Note: Cannot delete if category has products
    */
   @Delete(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseUUIDPipe) id: string, @Request() req: ExpressRequest) {
-    await this.categoriesService.remove(id, req.user?.['id']);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+    @Request() req: ExpressRequest,
+  ) {
+    await this.categoriesService.remove(id, tenantId, req.user?.['id']);
 
     return {
       statusCode: 204,

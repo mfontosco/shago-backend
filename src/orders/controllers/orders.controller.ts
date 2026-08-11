@@ -22,7 +22,9 @@ import {
   QueryOrdersDto,
 } from '../dtos/create-order.dto';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { TenantGuard } from '../../common/guards/tenant.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Request as ExpressRequest } from 'express';
 
 /**
@@ -60,8 +62,12 @@ export class OrdersController {
    * curl http://localhost:3000/api/v1/admin/orders?page=1&limit=20&status=pending
    */
   @Get()
-  async findAll(@Query() query: QueryOrdersDto) {
-    const { data, total } = await this.ordersService.findAll(query);
+  @UseGuards(TenantGuard)
+  async findAll(
+    @Query() query: QueryOrdersDto,
+    @CurrentTenant() tenantId: string,  // ← Extract tenant from request
+  ) {
+    const { data, total } = await this.ordersService.findAll(query, tenantId);  // ← Pass tenant
 
     return {
       statusCode: 200,
@@ -98,10 +104,16 @@ export class OrdersController {
    *   }'
    */
   @Post()
+  @UseGuards(TenantGuard)
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() createOrderDto: CreateOrderDto, @Request() req: ExpressRequest) {
+  async create(
+    @Body() createOrderDto: CreateOrderDto,
+    @CurrentTenant() tenantId: string,  // ← Extract tenant
+    @Request() req: ExpressRequest,
+  ) {
     const order = await this.ordersService.create(
       createOrderDto,
+      tenantId,  // ← Pass tenant
       req.user?.['id'], // Admin ID for audit logging
     );
 
@@ -123,8 +135,12 @@ export class OrdersController {
    * curl http://localhost:3000/api/v1/admin/orders/550e8400-e29b-41d4-a716-446655440000
    */
   @Get(':id')
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const order = await this.ordersService.findOne(id);
+  @UseGuards(TenantGuard)
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,  // ← Extract tenant
+  ) {
+    const order = await this.ordersService.findOne(id, tenantId);  // ← Pass tenant
 
     return {
       statusCode: 200,
@@ -147,12 +163,14 @@ export class OrdersController {
    *   -d '{"delivery_address": "456 Oak Ave"}'
    */
   @Patch(':id')
+  @UseGuards(TenantGuard)
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateOrderDto: UpdateOrderDto,
+    @CurrentTenant() tenantId: string,  // ← Extract tenant
     @Request() req: ExpressRequest,
   ) {
-    const order = await this.ordersService.update(id, updateOrderDto, req.user?.['id']);
+    const order = await this.ordersService.update(id, updateOrderDto, tenantId, req.user?.['id']);  // ← Pass tenant
 
     return {
       statusCode: 200,
@@ -175,14 +193,17 @@ export class OrdersController {
    *   -d '{"status": "confirmed"}'
    */
   @Patch(':id/status')
+  @UseGuards(TenantGuard)
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateStatusDto: UpdateOrderStatusDto,
+    @CurrentTenant() tenantId: string,  // ← Extract tenant
     @Request() req: ExpressRequest,
   ) {
     const order = await this.ordersService.updateStatus(
       id,
       updateStatusDto,
+      tenantId,  // ← Pass tenant
       req.user?.['id'],
     );
 
@@ -207,12 +228,14 @@ export class OrdersController {
    *   -d '{"rider_id": "uuid", "estimated_delivery_time": 45}'
    */
   @Patch(':id/assign-rider')
+  @UseGuards(TenantGuard)
   async assignRider(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() assignRiderDto: AssignRiderDto,
+    @CurrentTenant() tenantId: string,  // ← Extract tenant
     @Request() req: ExpressRequest,
   ) {
-    const order = await this.ordersService.assignRider(id, assignRiderDto, req.user?.['id']);
+    const order = await this.ordersService.assignRider(id, assignRiderDto, tenantId, req.user?.['id']);  // ← Pass tenant
 
     return {
       statusCode: 200,
@@ -232,9 +255,14 @@ export class OrdersController {
    * curl -X DELETE http://localhost:3000/api/v1/admin/orders/550e8400-e29b-41d4-a716-446655440000
    */
   @Delete(':id')
+  @UseGuards(TenantGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseUUIDPipe) id: string, @Request() req: ExpressRequest) {
-    await this.ordersService.remove(id, req.user?.['id']);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,  // ← Extract tenant
+    @Request() req: ExpressRequest,
+  ) {
+    await this.ordersService.remove(id, tenantId, req.user?.['id']);  // ← Pass tenant
 
     return {
       statusCode: 204,
@@ -252,8 +280,9 @@ export class OrdersController {
    * curl http://localhost:3000/api/v1/admin/orders/stats/dashboard
    */
   @Get('stats/dashboard')
-  async getDashboardStats() {
-    const stats = await this.ordersService.getDashboardStats();
+  @UseGuards(TenantGuard)
+  async getDashboardStats(@CurrentTenant() tenantId: string) {  // ← Extract tenant
+    const stats = await this.ordersService.getDashboardStats(tenantId);  // ← Pass tenant
 
     return {
       statusCode: 200,
@@ -272,8 +301,9 @@ export class OrdersController {
    * curl http://localhost:3000/api/v1/admin/orders/stats/today
    */
   @Get('stats/today')
-  async getTodaysSales() {
-    const total = await this.ordersService.getTodaysSales();
+  @UseGuards(TenantGuard)
+  async getTodaysSales(@CurrentTenant() tenantId: string) {  // ← Extract tenant
+    const total = await this.ordersService.getTodaysSales(tenantId);  // ← Pass tenant
 
     return {
       statusCode: 200,

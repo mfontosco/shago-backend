@@ -24,8 +24,11 @@ import { Product } from '../../product/entities/products.entities';
  * - Change status
  * - Calculate totals
  *
+ * Multi-tenancy: All methods filter by tenant_id
+ * All queries automatically scoped to vendor's data
+ *
  * Used by:
- * - OrdersController (admin endpoints)
+ * - OrdersController (vendor endpoints at /api/v1/vendor/orders)
  * - Dashboard (statistics)
  * - Reports (analytics)
  */
@@ -45,9 +48,9 @@ export class OrdersService {
   ) {}
 
   /**
-   * Create a new order
+   * Create a new order for a specific tenant
    */
-  async create(dto: CreateOrderDto, adminId?: string): Promise<Order> {
+  async create(dto: CreateOrderDto, tenantId: string, adminId?: string): Promise<Order> {
     // Validate items exist
     const productIds = dto.items.map((item) => item.product_id);
     const products = await this.productsRepository.findByIds(productIds);
@@ -58,6 +61,7 @@ export class OrdersService {
 
     // Create order
     const order = this.ordersRepository.create({
+      tenant_id: tenantId,  // ← CRITICAL: Set vendor ownership
       user_id: dto.user_id,
       delivery_address: dto.delivery_address,
       delivery_latitude: dto.delivery_latitude,
@@ -120,20 +124,21 @@ export class OrdersService {
   }
 
   /**
-   * Find all orders with pagination and filtering
+   * Find all orders for a specific tenant with pagination and filtering
    */
-  async findAll(query: QueryOrdersDto): Promise<{ data: Order[]; total: number }> {
+  async findAll(query: QueryOrdersDto, tenantId: string): Promise<{ data: Order[]; total: number }> {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const skip = (page - 1) * limit;
 
     let queryBuilder = this.ordersRepository
       .createQueryBuilder('order')
+      .where('order.tenant_id = :tenantId', { tenantId })  // ← CRITICAL: Filter by tenant
       .leftJoinAndSelect('order.user', 'user')
       .leftJoinAndSelect('order.items', 'items')
       .leftJoinAndSelect('items.product', 'product');
 
-    // Apply filters
+    // Apply additional filters on top of tenant filter
     if (query.status) {
       queryBuilder = queryBuilder.andWhere('order.status = :status', { status: query.status });
     }
@@ -166,15 +171,16 @@ export class OrdersService {
   }
 
   /**
-   * Find single order by ID
+   * Find single order by ID - verify tenant ownership
    */
-  async findOne(id: string): Promise<Order> {
+  async findOne(id: string, tenantId: string): Promise<Order> {
     const order = await this.ordersRepository
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.user', 'user')
       .leftJoinAndSelect('order.items', 'items')
       .leftJoinAndSelect('items.product', 'product')
       .where('order.id = :id', { id })
+      .andWhere('order.tenant_id = :tenantId', { tenantId })  // ← CRITICAL: Verify ownership
       .getOne();
 
     if (!order) {
@@ -185,10 +191,10 @@ export class OrdersService {
   }
 
   /**
-   * Update order details (admin)
+   * Update order details for a specific tenant
    */
-  async update(id: string, dto: UpdateOrderDto, adminId: string): Promise<Order> {
-    const order = await this.findOne(id);
+  async update(id: string, dto: UpdateOrderDto, tenantId: string, adminId: string): Promise<Order> {
+    const order = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     const changes = [];
 
@@ -212,7 +218,7 @@ export class OrdersService {
 
     const updated = await this.ordersRepository.save(order);
 
-    // Audit log
+    // Audit log (include tenant_id for audit trail)
     if (changes.length > 0) {
       await this.auditLogger.log({
         userId: adminId,
@@ -228,14 +234,15 @@ export class OrdersService {
   }
 
   /**
-   * Update order status
+   * Update order status for a specific tenant
    */
   async updateStatus(
     id: string,
     dto: UpdateOrderStatusDto,
+    tenantId: string,
     adminId: string,
   ): Promise<Order> {
-    const order = await this.findOne(id);
+    const order = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     const oldStatus = order.status;
     order.status = dto.status as OrderStatus;
@@ -266,10 +273,10 @@ export class OrdersService {
   }
 
   /**
-   * Assign rider to order
+   * Assign rider to order for a specific tenant
    */
-  async assignRider(id: string, dto: AssignRiderDto, adminId: string): Promise<Order> {
-    const order = await this.findOne(id);
+  async assignRider(id: string, dto: AssignRiderDto, tenantId: string, adminId: string): Promise<Order> {
+    const order = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     if (!order.canAssignRider()) {
       throw new BadRequestException(
@@ -303,10 +310,10 @@ export class OrdersService {
   }
 
   /**
-   * Cancel order
+   * Cancel order for a specific tenant
    */
-  async cancel(id: string, reason: string, adminId: string): Promise<Order> {
-    const order = await this.findOne(id);
+  async cancel(id: string, reason: string, tenantId: string, adminId: string): Promise<Order> {
+    const order = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
     if (!order.canBeCancelled()) {
       throw new BadRequestException(`Cannot cancel order with status: ${order.status}`);
@@ -335,9 +342,9 @@ export class OrdersService {
   }
 
   /**
-   * Get dashboard statistics
+   * Get dashboard statistics for a specific tenant
    */
-  async getDashboardStats(): Promise<{
+  async getDashboardStats(tenantId: string): Promise<{
     total_orders: number;
     pending_orders: number;
     confirmed_orders: number;
@@ -345,12 +352,13 @@ export class OrdersService {
     total_revenue: number;
     average_order_value: number;
   }> {
-    const total = await this.ordersRepository.count();
-    const pending = await this.ordersRepository.count({ where: { status: 'pending' } });
-    const confirmed = await this.ordersRepository.count({ where: { status: 'confirmed' } });
-    const delivered = await this.ordersRepository.count({ where: { status: 'delivered' } });
+    // ← CRITICAL: Filter all counts by tenant_id
+    const total = await this.ordersRepository.count({ where: { tenant_id: tenantId } });
+    const pending = await this.ordersRepository.count({ where: { tenant_id: tenantId, status: 'pending' } });
+    const confirmed = await this.ordersRepository.count({ where: { tenant_id: tenantId, status: 'confirmed' } });
+    const delivered = await this.ordersRepository.count({ where: { tenant_id: tenantId, status: 'delivered' } });
 
-    const orders = await this.ordersRepository.find();
+    const orders = await this.ordersRepository.find({ where: { tenant_id: tenantId } });
     const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total_price), 0);
     const avgOrderValue = total > 0 ? totalRevenue / total : 0;
 
@@ -365,17 +373,19 @@ export class OrdersService {
   }
 
   /**
-   * Get today's sales
+   * Get today's sales for a specific tenant
    */
-  async getTodaysSales(): Promise<number> {
+  async getTodaysSales(tenantId: string): Promise<number> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
+    // ← CRITICAL: Filter by tenant_id
     const orders = await this.ordersRepository.find({
       where: {
+        tenant_id: tenantId,
         created_at: Between(today, tomorrow),
         status: In(['completed', 'delivered']),
       },
@@ -394,10 +404,10 @@ export class OrdersService {
   }
 
   /**
-   * Delete (soft delete) an order
+   * Delete (soft delete) an order for a specific tenant
    */
-  async remove(id: string, adminId: string): Promise<void> {
-    const order = await this.findOne(id);
+  async remove(id: string, tenantId: string, adminId: string): Promise<void> {
+    const order = await this.findOne(id, tenantId);  // ← Verify ownership before deleting
 
     await this.ordersRepository.softDelete(id);
 

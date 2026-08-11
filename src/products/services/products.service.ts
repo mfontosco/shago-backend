@@ -21,8 +21,11 @@ import { AuditLoggerService } from '../../audit-logs/services/audit-logger.servi
  * - Manage stock/inventory
  * - Archive products
  *
+ * Multi-tenancy: All methods filter by tenant_id
+ * Products are isolated per vendor
+ *
  * Used by:
- * - ProductsController (admin endpoints)
+ * - ProductsController (vendor endpoints at /api/v1/vendor/products)
  * - Dashboard (product count, low stock alerts)
  * - Reports (product analytics)
  */
@@ -39,9 +42,9 @@ export class ProductsService {
   ) {}
 
   /**
-   * Create a new product
+   * Create a new product for a specific tenant
    */
-  async create(dto: CreateProductDto, adminId?: string): Promise<Product> {
+  async create(dto: CreateProductDto, tenantId: string, adminId?: string): Promise<Product> {
     // Validate category exists
     const category = await this.categoriesRepository.findOne({
       where: { id: dto.category_id },
@@ -62,6 +65,7 @@ export class ProductsService {
 
     // Create product
     const product = this.productsRepository.create({
+      tenant_id: tenantId,  // ← CRITICAL: Set vendor ownership
       name: dto.name,
       description: dto.description,
       sku: dto.sku,
@@ -89,14 +93,15 @@ export class ProductsService {
   }
 
   /**
-   * Find all products with filters and pagination
+   * Find all products for a specific tenant with filters and pagination
    */
-  async findAll(query: QueryProductsDto): Promise<{ data: Product[]; total: number }> {
+  async findAll(query: QueryProductsDto, tenantId: string): Promise<{ data: Product[]; total: number }> {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const skip = (page - 1) * limit;
 
-    let queryBuilder = this.productsRepository.createQueryBuilder('product');
+    let queryBuilder = this.productsRepository.createQueryBuilder('product')
+      .where('product.tenant_id = :tenantId', { tenantId });  // ← CRITICAL: Filter by tenant
 
     // Apply filters
     if (query.category_id) {

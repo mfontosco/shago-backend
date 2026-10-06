@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary, UploadApiResponse, UploadApiErrorResponse } from 'cloudinary';
+import { Multer } from 'multer';
 
 /**
  * Cloudinary Service
@@ -39,7 +40,7 @@ export class CloudinaryService {
    * @returns Upload response with secure URL
    */
   async uploadImage(
-    file: Express.Multer.File,
+    file: Multer.File,
     folder: string,
     publicId?: string,
   ): Promise<UploadApiResponse> {
@@ -56,7 +57,7 @@ export class CloudinaryService {
             resource_type: 'auto',
             timeout: 60000,
           },
-          (error: UploadApiErrorResponse | null, result: UploadApiResponse | undefined) => {
+          (error: UploadApiErrorResponse | undefined, result: UploadApiResponse | undefined) => {
             if (error) {
               this.logger.error(
                 `Cloudinary upload failed for folder ${folder}:`,
@@ -90,7 +91,7 @@ export class CloudinaryService {
    * Upload multiple images
    */
   async uploadImages(
-    files: Express.Multer.File[],
+    files: Multer.File[],
     folder: string,
   ): Promise<UploadApiResponse[]> {
     const uploadPromises = files.map((file) =>
@@ -155,7 +156,7 @@ export class CloudinaryService {
   /**
    * Validate file before upload
    */
-  validateFile(file: Express.Multer.File): boolean {
+  validateFile(file: Multer.File): boolean {
     const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     const maxSize = 5 * 1024 * 1024; // 5MB
 

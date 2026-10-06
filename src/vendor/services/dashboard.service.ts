@@ -186,16 +186,16 @@ export class DashboardService {
     })
     .then(products =>
       products
-        .filter(p => p.stock < threshold)
-        .sort((a, b) => a.stock - b.stock)
+        .filter(p => p.stock_quantity < threshold)
+        .sort((a, b) => a.stock_quantity - b.stock_quantity)
         .slice(0, 10) // Top 10 low stock items
         .map(product => ({
           id: product.id,
           name: product.name,
           sku: product.sku,
-          stock: product.stock,
+          stock_quantity: product.stock_quantity,
           threshold: threshold,
-          status: product.stock === 0 ? 'out' : product.stock < threshold / 2 ? 'critical' : 'low',
+          status: product.stock_quantity === 0 ? 'out' : product.stock_quantity < threshold / 2 ? 'critical' : 'low',
         }))
     );
   }

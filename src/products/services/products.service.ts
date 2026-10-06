@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, Between, LessThan } from 'typeorm';
-import { Product } from '../entities/products.entities';
+import { Product } from '../entities/product.entity';
 import { Categeories } from '../../categories/entities/categories.entities';
 import {
   CreateProductDto,
@@ -70,7 +70,7 @@ export class ProductsService {
       description: dto.description,
       sku: dto.sku,
       price: dto.price,
-      stock: dto.stock,
+      stock_quantity: dto.stock_quantity,
       category_id: dto.category_id,
       image_url: dto.image_url,
       status: (dto.status || 'active') as any,
@@ -131,7 +131,7 @@ export class ProductsService {
     }
 
     if (query.low_stock_only) {
-      queryBuilder = queryBuilder.andWhere('product.stock < 10'); // Low stock threshold
+      queryBuilder = queryBuilder.andWhere('product.stock_quantity < 10'); // Low stock threshold
     }
 
     // Apply sorting
@@ -174,7 +174,7 @@ export class ProductsService {
   async update(id: string, dto: UpdateProductDto, tenantId: string, adminId: string): Promise<Product> {
     const product = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
-    const changes = [];
+    const changes: any[] = [];
 
     if (dto.name && dto.name !== product.name) {
       changes.push({ field: 'name', old_value: product.name, new_value: dto.name });
@@ -195,9 +195,9 @@ export class ProductsService {
       product.price = dto.price;
     }
 
-    if (dto.stock !== undefined && dto.stock !== product.stock) {
-      changes.push({ field: 'stock', old_value: product.stock, new_value: dto.stock });
-      product.stock = dto.stock;
+    if (dto.stock_quantity !== undefined && dto.stock_quantity !== product.stock_quantity) {
+      changes.push({ field: 'stock_quantity', old_value: product.stock_quantity, new_value: dto.stock_quantity });
+      product.stock_quantity = dto.stock_quantity;
     }
 
     if (dto.status && dto.status !== product.status) {
@@ -233,7 +233,7 @@ export class ProductsService {
   ): Promise<Product> {
     const product = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
-    const oldStock = product.stock;
+    const oldStock = product.stock_quantity;
     let newStock = oldStock;
 
     if (dto.action === 'add') {
@@ -247,7 +247,7 @@ export class ProductsService {
       newStock = dto.quantity;
     }
 
-    product.stock = newStock;
+    product.stock_quantity = newStock;
     const updated = await this.productsRepository.save(product);
 
     // Audit log
@@ -258,7 +258,7 @@ export class ProductsService {
       entityId: id,
       changes: [
         {
-          field: 'stock',
+          field: 'stock_quantity',
           old_value: oldStock,
           new_value: newStock,
         },
@@ -274,8 +274,8 @@ export class ProductsService {
    */
   async getLowStockAlerts(tenantId: string, threshold: number = 10): Promise<Product[]> {
     return this.productsRepository.find({
-      where: { tenant_id: tenantId, stock: LessThan(threshold), status: 'active' },  // ← Filter by tenant
-      order: { stock: 'ASC' },
+      where: { tenant_id: tenantId, stock_quantity: LessThan(threshold), status: 'active' },  // ← Filter by tenant
+      order: { stock_quantity: 'ASC' },
       take: 20,
     });
   }
@@ -353,6 +353,6 @@ export class ProductsService {
    */
   async getInventoryValue(tenantId: string): Promise<number> {
     const products = await this.productsRepository.find({ where: { tenant_id: tenantId } });  // ← Filter by tenant
-    return products.reduce((sum, p) => sum + Number(p.price) * p.stock, 0);
+    return products.reduce((sum, p) => sum + Number(p.price) * p.stock_quantity, 0);
   }
 }

@@ -8,7 +8,7 @@ import {
   Index,
 } from 'typeorm';
 import { Order } from './order.entity';
-import { Product } from '../../product/entities/products.entities';
+import { Product } from '../../products/entities/product.entity';
 
 /**
  * OrderItem Entity - Represents a single product in an order

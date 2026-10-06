@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { Categeories } from '../entities/categories.entities';
-import { Product } from '../../product/entities/products.entities';
+import { Product } from '../../products/entities/product.entity';
 import {
   CreateCategoryDto,
   UpdateCategoryDto,
@@ -105,7 +105,7 @@ export class CategoriesService {
 
     // Get paginated data with product count
     const data = await queryBuilder
-      .loadRelationIds({
+      .loadAllRelationIds({
         relations: ['products'],
         disableMixedMap: true,
       })
@@ -118,7 +118,7 @@ export class CategoriesService {
       const productCount = await this.productsRepository.count({
         where: { category_id: category.id },
       });
-      category.product_count = productCount;
+      (category as any).product_count = productCount;
     }
 
     return { data, total };
@@ -140,7 +140,7 @@ export class CategoriesService {
     const productCount = await this.productsRepository.count({
       where: { category_id: id, tenant_id: tenantId },  // ← Filter by tenant
     });
-    category.product_count = productCount;
+    (category as any).product_count = productCount;
 
     return category;
   }
@@ -151,7 +151,7 @@ export class CategoriesService {
   async update(id: string, dto: UpdateCategoryDto, tenantId: string, adminId: string): Promise<Categeories> {
     const category = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
-    const changes = [];
+    const changes: any[] = [];
 
     if (dto.name && dto.name !== category.name) {
       changes.push({ field: 'name', old_value: category.name, new_value: dto.name });

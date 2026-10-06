@@ -1,4 +1,4 @@
-import { Product } from "../../product/entities/products.entities";
+import { Product } from "../../products/entities/product.entity";
 import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 
@@ -11,7 +11,7 @@ export class ProductImage{
     @Column({})
     url: string
 
-    @ManyToOne(()=>Product, (prod)=>prod.images,{
+    @ManyToOne(()=>Product,{
         onDelete:"CASCADE"
     })
     product:Product

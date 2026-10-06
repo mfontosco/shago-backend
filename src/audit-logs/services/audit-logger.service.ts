@@ -54,7 +54,7 @@ export class AuditLoggerService {
     request?: Request,
   ): Promise<AuditLog> {
     try {
-      const auditLog = this.auditLogRepository.create({
+      const auditLog = this.auditLogRepository.create([{
         admin_user_id: data.userId,
         resource: data.resource,
         action: data.action,
@@ -66,7 +66,7 @@ export class AuditLoggerService {
         http_method: data.httpMethod || request?.method || null,
         endpoint: data.endpoint || request?.path || null,
         status_code: data.statusCode || null,
-      });
+      }] as any);
 
       const saved = await this.auditLogRepository.save(auditLog);
 
@@ -80,11 +80,27 @@ export class AuditLoggerService {
         },
       );
 
-      return saved;
+      return Array.isArray(saved) ? saved[0] : saved;
     } catch (error) {
       this.logger.error('Failed to log audit action', error);
       // Don't throw - logging failures shouldn't break the main operation
-      return null;
+      // Return a partial audit log object for consistency
+      return {
+        id: 'unknown',
+        admin_user_id: data.userId,
+        admin_user: null,
+        resource: data.resource,
+        action: data.action,
+        entity_id: data.entityId,
+        changes: data.changes || [],
+        description: data.description || null,
+        ip_address: request?.ip || null,
+        user_agent: request?.get('user-agent') || null,
+        http_method: data.httpMethod || request?.method || null,
+        endpoint: data.endpoint || request?.path || null,
+        status_code: data.statusCode || null,
+        created_at: new Date(),
+      } as unknown as AuditLog;
     }
   }
 

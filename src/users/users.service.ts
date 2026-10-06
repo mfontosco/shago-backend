@@ -28,18 +28,28 @@ export class UsersService {
         // Use provided hashed password (for vendor registration) or hash it
         const finalPassword = password && password.length > 50 ? password : await bcrypt.hash(password, 10);
 
-        const newUser = await this.userRepository.create({
+        const newUser = this.userRepository.create({
             ...dto,
             password: finalPassword,
             active: true,
         });
 
-        return this.userRepository.save(newUser);
+        const saved = await this.userRepository.save(newUser);
+        return Array.isArray(saved) ? saved[0] : saved;
     }
 
 
-    async findUserByEmail(email:string):Promise<User | null>{
-        return this.userRepository.findOne({where:{email}})
+    async findUserByEmail(email:string, includePassword: boolean = false):Promise<User | null>{
+        // QueryBuilder ignores eager relations, so join role explicitly (login puts it in the JWT)
+        const query = this.userRepository.createQueryBuilder('user')
+            .leftJoinAndSelect('user.role', 'role')
+            .where('user.email = :email', { email });
+
+        if (includePassword) {
+            query.addSelect('user.password');
+        }
+
+        return query.getOne();
     }
 
     async findById(id:string):Promise<User>{

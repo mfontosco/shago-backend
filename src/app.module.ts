@@ -39,21 +39,31 @@ import { Rider } from './delivery/entities/rider.entity';
 import { Tenant } from './tenants/entities/tenant.entity';
 import { TenantsModule } from './tenants/tenants.module';
 import { VendorModule } from './vendor/vendor.module';
+import { SupportModule } from './support/support.module';
+import { SupportTicket } from './support/entities/support-ticket.entity';
+import { SupportReply } from './support/entities/support-reply.entity';
+import { Feedback } from './support/entities/feedback.entity';
+import { PaymentsModule } from './payments/payments.module';
+import { Payment } from './payments/entities/payment.entity';
+import { MarketingModule } from './marketing/marketing.module';
+import { Promotion } from './marketing/entities/promotion.entity';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
     JwtModule.registerAsync({
-          global: true,
-          inject: [ConfigService],
-          useFactory: (config: ConfigService) => {
-            return {
-              secret: config.get<string>('JWT_SECRET') || 'default-secret-change-in-production',
-              signOptions: { expiresIn: 3600 }
-            } as any;
-          }
-        }),
-    ConfigModule.forRoot({isGlobal:true}),
-          TypeOrmModule.forRootAsync({
+      global: true,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_SECRET') ?? 'mfon-secret-key';
+        console.log(`[JWT] Initialized with secret: ${secret.substring(0, 5)}...`);
+        return {
+          secret: secret,
+          signOptions: { expiresIn: 3600 }
+        };
+      }
+    }),
+    TypeOrmModule.forRootAsync({
             inject:[ConfigService],
             useFactory:  (config:ConfigService)=>({
               type:"postgres",
@@ -62,9 +72,9 @@ import { VendorModule } from './vendor/vendor.module';
               username: config.get("DB_USERNAME"),
               password:config.get("DB_PASSWORD"),
               database:config.get("DB_NAME"),
-              entities: [Tenant, User, Categeories, Attributes, AttributeValue, Product, ProductImage, ProductVariant, VariantAttribute, Role, Permission, AuditLog, Order, OrderItem, Delivery, Rider],
+              entities: [Tenant, User, Categeories, Attributes, AttributeValue, Product, ProductImage, ProductVariant, VariantAttribute, Role, Permission, AuditLog, Order, OrderItem, Delivery, Rider, SupportTicket, SupportReply, Feedback, Payment, Promotion],
               migrations: [__dirname + "/migrations/*{.ts,.js}"],
-              synchronize:false,
+              synchronize:true,
               migrationsRun:false
              })
           }),
@@ -84,7 +94,10 @@ import { VendorModule } from './vendor/vendor.module';
           AdminModule,
           CommonModule,
           OrdersModule,
-          DeliveryModule
+          DeliveryModule,
+          SupportModule,
+          PaymentsModule,
+          MarketingModule
   ],
   controllers: [AppController],
   providers: [AppService],

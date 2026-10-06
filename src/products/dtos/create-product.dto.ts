@@ -7,8 +7,8 @@ import {
   MinLength,
   Min,
   IsEnum,
-  Type,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 /**
  * Variant data for product
@@ -24,7 +24,7 @@ export class ProductVariantDto {
 
   @IsNumber()
   @Min(0)
-  stock: number;
+  stock_quantity: number;
 
   @IsOptional()
   @IsString()
@@ -56,7 +56,7 @@ export class CreateProductDto {
 
   @IsNumber()
   @Min(0)
-  stock: number;
+  stock_quantity: number;
 
   @IsUUID()
   category_id: string;
@@ -97,7 +97,7 @@ export class UpdateProductDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  stock?: number;
+  stock_quantity?: number;
 
   @IsOptional()
   @IsString()
@@ -178,7 +178,7 @@ export class ProductResponseDto {
   description: string;
   sku: string;
   price: number;
-  stock: number;
+  stock_quantity: number;
   category_id: string;
   category?: {
     id: string;
@@ -190,7 +190,7 @@ export class ProductResponseDto {
     id: string;
     sku: string;
     price: number;
-    stock: number;
+    stock_quantity: number;
     color?: string;
     size?: string;
   }>;

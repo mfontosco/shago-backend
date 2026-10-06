@@ -166,7 +166,7 @@ export class RidersService {
   ): Promise<Rider> {
     const rider = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
-    const changes = [];
+    const changes: any[] = [];
 
     if (data.name && data.name !== rider.name) {
       changes.push({

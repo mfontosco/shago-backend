@@ -11,7 +11,7 @@ import {
   QueryOrdersDto,
 } from '../dtos/create-order.dto';
 import { AuditLoggerService } from '../../audit-logs/services/audit-logger.service';
-import { Product } from '../../product/entities/products.entities';
+import { Product } from '../../products/entities/product.entity';
 
 /**
  * Orders Service
@@ -87,8 +87,8 @@ export class OrdersService {
       const item = this.orderItemsRepository.create({
         order: order,
         product_id: itemDto.product_id,
-        product_name: product.name,
-        product_sku: product.sku,
+        product_name: product?.name || 'Unknown Product',
+        product_sku: product?.sku || 'N/A',
         quantity: itemDto.quantity,
         unit_price: itemDto.unit_price,
         subtotal: itemSubtotal,
@@ -196,7 +196,7 @@ export class OrdersService {
   async update(id: string, dto: UpdateOrderDto, tenantId: string, adminId: string): Promise<Order> {
     const order = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
-    const changes = [];
+    const changes: any[] = [];
 
     if (dto.delivery_address && dto.delivery_address !== order.delivery_address) {
       changes.push({

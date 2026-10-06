@@ -179,7 +179,7 @@ export class DeliveriesService {
   ): Promise<Delivery> {
     const delivery = await this.findOne(id, tenantId);  // ← Pass tenantId for verification
 
-    const changes = [];
+    const changes: any[] = [];
 
     if (
       dto.delivery_address &&
@@ -334,7 +334,9 @@ export class DeliveriesService {
     }
 
     if (dto.status === 'failed') {
-      delivery.rejection_reason = dto.rejection_reason;
+      if (dto.rejection_reason) {
+        delivery.rejection_reason = dto.rejection_reason;
+      }
       delivery.delivery_attempts = (delivery.delivery_attempts || 0) + 1;
     }
 
@@ -368,10 +370,11 @@ export class DeliveriesService {
    */
   async updateRiderLocation(
     deliveryId: string,
+    tenantId: string,
     dto: UpdateRiderLocationDto,
     riderId: string,
   ): Promise<Delivery> {
-    const delivery = await this.findOne(deliveryId);
+    const delivery = await this.findOne(deliveryId, tenantId);
 
     if (delivery.rider_id !== riderId) {
       throw new BadRequestException('Not assigned to this delivery');
@@ -379,7 +382,6 @@ export class DeliveriesService {
 
     delivery.current_latitude = dto.latitude;
     delivery.current_longitude = dto.longitude;
-    delivery.current_location = dto.current_location;
 
     return this.deliveryRepository.save(delivery);
   }

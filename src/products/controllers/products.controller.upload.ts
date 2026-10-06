@@ -18,6 +18,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { Multer } from 'multer';
 import { ProductsService } from '../services/products.service';
 import { CloudinaryService } from '../../common/services/cloudinary.service';
 import {
@@ -154,7 +155,7 @@ export class ProductsController {
   @UseInterceptors(FileInterceptor('image'))
   async create(
     @Body() createProductDto: CreateProductDto,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: Multer.File,
     @Request() req: ExpressRequest,
   ) {
     let imageUrl: string | undefined;
@@ -231,7 +232,7 @@ export class ProductsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProductDto: UpdateProductDto,
     @CurrentTenant() tenantId: string,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: Multer.File,
     @Request() req: ExpressRequest,
   ) {
     let imageUrl: string | undefined;
@@ -281,12 +282,13 @@ export class ProductsController {
    *   http://localhost:3000/api/v1/admin/products/product-uuid/image
    */
   @Patch(':id/image')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @UseInterceptors(FileInterceptor('image'))
   async updateImage(
     @Param('id', ParseUUIDPipe) id: string,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: any,
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
     if (!file) {
@@ -304,6 +306,7 @@ export class ProductsController {
       const product = await this.productsService.update(
         id,
         { image_url: uploadResult.secure_url },
+        tenantId,
         req.user?.['id'],
       );
 
@@ -324,16 +327,18 @@ export class ProductsController {
    * Admin only
    */
   @Patch(':id/stock')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   async updateStock(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateStockDto: UpdateStockDto,
+    @CurrentTenant() tenantId: string,
     @Request() req: ExpressRequest,
   ) {
     const product = await this.productsService.updateStock(
       id,
       updateStockDto,
+      tenantId,
       req.user?.['id'],
     );
 
@@ -351,10 +356,14 @@ export class ProductsController {
    * Admin only
    */
   @Patch(':id/archive')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async archive(@Param('id', ParseUUIDPipe) id: string, @Request() req: ExpressRequest) {
-    const product = await this.productsService.archive(id, req.user?.['id']);
+  async archive(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+    @Request() req: ExpressRequest,
+  ) {
+    const product = await this.productsService.archive(id, tenantId, req.user?.['id']);
 
     return {
       statusCode: 200,
@@ -370,11 +379,15 @@ export class ProductsController {
    * Admin only
    */
   @Delete(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseUUIDPipe) id: string, @Request() req: ExpressRequest) {
-    await this.productsService.remove(id, req.user?.['id']);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+    @Request() req: ExpressRequest,
+  ) {
+    await this.productsService.remove(id, tenantId, req.user?.['id']);
 
     return {
       statusCode: 204,
@@ -389,10 +402,10 @@ export class ProductsController {
    * Admin only
    */
   @Get('stats/count')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async getCount() {
-    const count = await this.productsService.getCount();
+  async getCount(@CurrentTenant() tenantId: string) {
+    const count = await this.productsService.getCount(tenantId);
 
     return {
       statusCode: 200,
@@ -408,10 +421,10 @@ export class ProductsController {
    * Admin only
    */
   @Get('stats/inventory-value')
-  @UseGuards(RolesGuard)
+  @UseGuards(RolesGuard, TenantGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  async getInventoryValue() {
-    const value = await this.productsService.getInventoryValue();
+  async getInventoryValue(@CurrentTenant() tenantId: string) {
+    const value = await this.productsService.getInventoryValue(tenantId);
 
     return {
       statusCode: 200,

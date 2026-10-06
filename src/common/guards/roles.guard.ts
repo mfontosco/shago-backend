@@ -37,7 +37,7 @@ export class RolesGuard implements CanActivate {
 
     // Get authenticated user from request (populated by AuthGuard)
     const request = context.switchToHttp().getRequest();
-    const user = request.user as User & { role?: { name: string } };
+    const user = request.user as Omit<User, 'role'> & { role?: string | { name: string } };
 
     // User must exist and have a role (AuthGuard should ensure this)
     if (!user) {
@@ -46,19 +46,23 @@ export class RolesGuard implements CanActivate {
       );
     }
 
-    if (!user.role) {
+    // JWT payloads (TenantMiddleware / JwtAuthGuard) carry the role as a plain string;
+    // a hydrated User entity carries a Role object
+    const roleName = typeof user.role === 'string' ? user.role : user.role?.name;
+
+    if (!roleName) {
       throw new ForbiddenException(
         'User role not assigned. Contact administrator.',
       );
     }
 
     // Check if user's role is in required roles list
-    const hasRequiredRole = requiredRoles.includes(user.role.name);
+    const hasRequiredRole = requiredRoles.includes(roleName);
 
     if (!hasRequiredRole) {
       const rolesList = requiredRoles.join(', ');
       throw new ForbiddenException(
-        `Access denied. This endpoint requires one of the following roles: ${rolesList}. Your role: ${user.role.name}`,
+        `Access denied. This endpoint requires one of the following roles: ${rolesList}. Your role: ${roleName}`,
       );
     }
 

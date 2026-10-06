@@ -1,4 +1,4 @@
-import { Product } from "../../product/entities/products.entities";
+import { Product } from "../../products/entities/product.entity";
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from "typeorm";
 import { Tenant } from "../../tenants/entities/tenant.entity";
 
@@ -24,6 +24,9 @@ export class Categeories{
 
     @Column({nullable:true})
     description: string
+
+    @Column({nullable:true})
+    image_url: string
 
     @OneToMany(()=>Product,(prod)=>prod.category)
     product:Product

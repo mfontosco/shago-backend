@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
 
-export class CreateRbacSystem1723046400000 implements MigrationInterface {
+export class CreateRbacSystem1000000000002 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Create permissions table
     await queryRunner.createTable(
@@ -132,26 +132,39 @@ export class CreateRbacSystem1723046400000 implements MigrationInterface {
       }),
     );
 
-    // Add role_id column to users table
-    await queryRunner.addColumn(
-      'users',
-      new (require('typeorm').TableColumn)({
-        name: 'role_id',
-        type: 'uuid',
-        isNullable: true,
-      }),
-    );
+    // Add role_id column to users table if it doesn't already exist
+    try {
+      await queryRunner.addColumn(
+        'users',
+        new (require('typeorm').TableColumn)({
+          name: 'role_id',
+          type: 'uuid',
+          isNullable: true,
+        }),
+      );
+    } catch (e: any) {
+      // Column already exists, skip
+      if (!e.message.includes('already exists')) throw e;
+    }
 
-    // Add foreign key from users to roles
-    await queryRunner.createForeignKey(
-      'users',
-      new TableForeignKey({
-        columnNames: ['role_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'roles',
-        onDelete: 'SET NULL',
-      }),
-    );
+    // Add foreign key from users to roles (if not already exists)
+    let foreignKeyExists = false;
+    const userTable = await queryRunner.getTable('users');
+    if (userTable && userTable.foreignKeys.some(fk => fk.columnNames.includes('role_id'))) {
+      foreignKeyExists = true;
+    }
+
+    if (!foreignKeyExists) {
+      await queryRunner.createForeignKey(
+        'users',
+        new TableForeignKey({
+          columnNames: ['role_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'roles',
+          onDelete: 'SET NULL',
+        }),
+      );
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

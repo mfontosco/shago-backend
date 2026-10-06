@@ -3,6 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
+  OneToMany,
   JoinColumn,
   Index,
   CreateDateColumn,
@@ -11,6 +12,7 @@ import {
 } from 'typeorm';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Categeories } from '../../categories/entities/categories.entities';
+import { ProductVariant } from '../../productvariant/entities/product-variant.entities';
 
 /**
  * Product Entity
@@ -48,7 +50,7 @@ export class Product {
   price: number;
 
   @Column('integer', { default: 0 })
-  stock: number;
+  stock_quantity: number;
 
   @Column('varchar', { length: 255, nullable: true })
   image_url: string;
@@ -59,6 +61,9 @@ export class Product {
   @ManyToOne(() => Categeories, { nullable: true })
   @JoinColumn({ name: 'category_id' })
   category: Categeories;
+
+  @OneToMany(() => ProductVariant, (variant) => variant.product, { cascade: true })
+  variants: ProductVariant[];
 
   @Column('enum', {
     enum: ['active', 'archived', 'discontinued'],
@@ -83,10 +88,10 @@ export class Product {
 
   // Helper methods
   isLowStock(): boolean {
-    return this.stock <= this.reorder_level;
+    return this.stock_quantity <= this.reorder_level;
   }
 
   canBeSold(): boolean {
-    return this.status === 'active' && this.stock > 0;
+    return this.status === 'active' && this.stock_quantity > 0;
   }
 }

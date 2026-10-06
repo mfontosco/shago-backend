@@ -1,10 +1,11 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, InternalServerErrorException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from '../users/dtos/login.dto';
 import { VendorRegisterDto } from '../users/dtos/vendor-register.dto';
 import { User } from '../users/entities/user.entities';
 import { UsersService } from '../users/users.service';
 import { TenantsService } from '../tenants/services/tenants.service';
+import { RolesService } from '../roles/roles.service';
 import  * as bcrypt from "bcrypt"
 
 @Injectable()
@@ -12,14 +13,19 @@ export class AuthService {
     constructor(
         private readonly userService: UsersService,
         private readonly tenantsService: TenantsService,
+        private readonly rolesService: RolesService,
         private readonly jwtService: JwtService
     ){}
 
     async login(dto: LoginDto) {
         const { email, password } = dto;
-        const user = await this.userService.findUserByEmail(email);
+        const user = await this.userService.findUserByEmail(email, true);
 
         if (!user) {
+            throw new UnauthorizedException("invalid user details, verify your email");
+        }
+
+        if (!user.password) {
             throw new UnauthorizedException("invalid user details, verify your email");
         }
 
@@ -28,17 +34,29 @@ export class AuthService {
             throw new UnauthorizedException("password mismatch");
         }
 
-        const { password: _, ...userWithoutPassword } = user;
+        if (!user.tenant_id) {
+            throw new UnauthorizedException("user account is not associated with a vendor. please re-register.");
+        }
+
+        const { password: _, role, ...userWithoutPassword } = user;
+        const roleName = role?.name;
 
         // ✅ CRITICAL: Include tenant_id in JWT payload for multi-tenancy
+        // role is read by RolesGuard via TenantMiddleware
         const payload = {
             sub: user.id,
             email: user.email,
-            tenant_id: user.tenant_id,  // ← ADDED FOR MULTI-TENANCY
+            tenant_id: user.tenant_id,
+            role: roleName,
         };
         const access_token = await this.jwtService.signAsync(payload);
 
-        return { ...userWithoutPassword, access_token, tenant_id: user.tenant_id };
+        // Shape matches the vendor, main and rider app clients: { access_token, user }
+        return {
+            user: { ...userWithoutPassword, role: roleName },
+            access_token,
+            tenant_id: user.tenant_id,
+        };
     }
 
     /**
@@ -62,6 +80,12 @@ export class AuthService {
             throw new ConflictException('Email already registered');
         }
 
+        // Resolve the ADMIN role before creating anything, so we never leave a role-less user behind
+        const adminRole = await this.rolesService.findByName('ADMIN');
+        if (!adminRole) {
+            throw new InternalServerErrorException('ADMIN role not found. Run `npm run seed` to create default roles.');
+        }
+
         // 2️⃣ Create tenant (vendor organization)
         const tenant = await this.tenantsService.create({
             name: dto.business_name,
@@ -79,7 +103,7 @@ export class AuthService {
             last_name: dto.last_name || '',
             phone: dto.phone || '',
             tenant_id: tenant.id,  // ← Assign to tenant
-            role: 'ADMIN',  // ← First user is admin of their tenant
+            role_id: adminRole.id,  // ← First user is admin of their tenant
         });
 
         // Increment tenant user count
@@ -90,15 +114,15 @@ export class AuthService {
             sub: user.id,
             email: user.email,
             tenant_id: user.tenant_id,  // ← Critical for multi-tenancy
-            role: 'ADMIN',
+            role: adminRole.name,
         };
         const access_token = await this.jwtService.signAsync(payload);
 
         // Return registration response
-        const { password: _, ...userWithoutPassword } = user;
+        const { password: _, role: __, ...userWithoutPassword } = user;
 
         return {
-            user: userWithoutPassword,
+            user: { ...userWithoutPassword, role: adminRole.name },
             tenant: {
                 id: tenant.id,
                 name: tenant.name,

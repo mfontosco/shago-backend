@@ -1,4 +1,4 @@
-import { Product } from "../../product/entities/products.entities";
+import { Product } from "../../products/entities/product.entity";
 import { VariantAttribute } from "../../variantattribute/entities/variant-attribute.entities";
 import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 

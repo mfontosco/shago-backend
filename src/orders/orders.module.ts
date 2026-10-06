@@ -4,7 +4,7 @@ import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { OrdersService } from './services/orders.service';
 import { OrdersController } from './controllers/orders.controller';
-import { Product } from '../product/entities/products.entities';
+import { Product } from '../products/entities/product.entity';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 /**

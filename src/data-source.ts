@@ -11,6 +11,6 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME,
   entities: ['src/**/*.entity.ts', 'src/**/*.entities.ts'],
   migrations: ['src/migrations/*.ts'],
-  synchronize: true,
+  synchronize: false,
   migrationsRun: false,
 })

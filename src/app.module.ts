@@ -55,8 +55,10 @@ import { Promotion } from './marketing/entities/promotion.entity';
       global: true,
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const secret = configService.get<string>('JWT_SECRET') ?? 'mfon-secret-key';
-        console.log(`[JWT] Initialized with secret: ${secret.substring(0, 5)}...`);
+        const secret = configService.get<string>('JWT_SECRET');
+        if (!secret) {
+          throw new Error('JWT_SECRET is not set. Add it to your .env file.');
+        }
         return {
           secret: secret,
           signOptions: { expiresIn: 3600 }
@@ -74,7 +76,7 @@ import { Promotion } from './marketing/entities/promotion.entity';
               database:config.get("DB_NAME"),
               entities: [Tenant, User, Categeories, Attributes, AttributeValue, Product, ProductImage, ProductVariant, VariantAttribute, Role, Permission, AuditLog, Order, OrderItem, Delivery, Rider, SupportTicket, SupportReply, Feedback, Payment, Promotion],
               migrations: [__dirname + "/migrations/*{.ts,.js}"],
-              synchronize:true,
+              synchronize:false,
               migrationsRun:false
              })
           }),
